@@ -1,60 +1,68 @@
-# DiscRoute (Hybrid Dual-NIC Discord Bypass)
+# DiscRoute
 
-> **Intelligent, lightweight split-routing engine for Windows 11/10.**
-> Automatically routes blocked Discord voice (WebRTC) and media traffic through Wi-Fi while preserving your campus / office LAN (Ethernet) as the high-speed primary connection for everything else.
+Dual-NIC split router for Windows. Keeps primary traffic on Ethernet while sending blocked Discord voice (WebRTC) and media traffic over a secondary Wi-Fi connection.
 
----
+## Problem
 
-## ⚡ Features
-- **100% Zero-Touch LAN Preservation**: Your default gateway remains pinned to your Ethernet connection (Metric 35). All web browsing, steam downloads, browser video streams, and general applications continue utilizing LAN bandwidth.
-- **Dynamic RTC Voice Detection**: Monitors Discord voice connection attempts in real-time, detecting assigned regional voice servers (Singapore, US, EU, Hong Kong, etc.) and seamlessly tunneling UDP/TCP voice packets across Wi-Fi.
-- **Subnet Pre-Seeding**: Discord signaling, gateway endpoints (`162.159.128.0/21`, `162.159.136.0/21`), and voice server clusters (`66.22.0.0/20`, `104.29.140-142.0/24`) are pre-routed with Metric 1 priority on Wi-Fi.
-- **Resource Efficient**: Single-threaded, zero-CPU idle loop written in native Go with Windows GUI subsystem (no console window popups).
-- **System Tray Guardian**: Runs quietly in your Windows system tray with balloon notifications and status controls.
-- **Battery & Disconnect Safe**: If Wi-Fi disconnects or is turned off, the engine instantly enters low-power sleep without spamming routes or causing network lag.
+Campus and office firewalls frequently block outbound UDP or inspect WebRTC traffic, causing Discord voice channels to cycle endlessly through `Connecting -> RTC Connecting -> No Route`. 
 
----
+Switching the entire laptop connection to a Wi-Fi hotspot fixes voice, but sacrifices LAN speeds for browsing, downloads, and low-latency internal services.
 
-## 🚀 1-Click Install (Windows 11)
+## Solution
 
-### Option 1: Quick Install (Recommended)
-1. Download the latest `DiscRoute.zip` from Releases.
-2. Extract the folder anywhere (e.g., `C:\Tools\DiscRoute`).
-3. Right-click **`Install-DiscRoute.bat`** and click **"Run as administrator"**.
-4. **Done!** DiscRoute is now registered in Windows Task Scheduler to run with highest privileges automatically at startup and live in your System Tray.
+DiscRoute dynamically splits traffic at the Windows IP routing layer:
+1. **Ethernet stays default (`0.0.0.0/0`, Metric 35)**: All browser, download, and game traffic routes through LAN.
+2. **Discord media routes via Wi-Fi (Metric 1)**: Subnets for Discord gateways (`162.159.128.0/21`, `162.159.136.0/21`), voice servers (`66.22.0.0/20`), and dynamic regional endpoints (`104.29.140-142.0/24`) are routed directly to the Wi-Fi gateway.
+3. **Live voice detection**: The engine reads Discord client logs to identify newly assigned WebRTC media nodes and binds host routes immediately.
+4. **Idle protection**: When Wi-Fi is disconnected, the daemon sleeps without consuming CPU or generating network calls.
 
-### Option 2: 1-Line PowerShell Install
-Open PowerShell as Administrator and run:
+## Installation
+
+### 1-Click Install
+1. Grab `DiscRoute-v1.0.0-Windows.zip` from [Releases](https://github.com/Hooligans-Jaringan-Lab-FTTH-PENS/DiscRoute/releases/latest).
+2. Extract the archive.
+3. Right-click `Install-DiscRoute.bat` and select **Run as administrator**.
+
+The script registers a Scheduled Task (`DiscRouteService`) running with elevated rights at system startup, starts the daemon, and loads the system tray indicator.
+
+### PowerShell Install
+Run an elevated PowerShell prompt:
 ```powershell
-irm https://raw.githubusercontent.com/agung-krisna/DiscRoute/main/install.ps1 | iex
+irm https://raw.githubusercontent.com/Hooligans-Jaringan-Lab-FTTH-PENS/DiscRoute/main/install.ps1 | iex
 ```
 
----
-
-## 🛠️ Architecture
+## How It Routes
 
 ```
-                 +------------------------------+
-                 |       Windows 11 PC          |
-                 +------------------------------+
-                           |          |
-            Discord Voice  |          |  All Other Traffic
-            (UDP/WebRTC)   |          |  (HTTP/HTTPS/Games)
-                           v          v
-                  [ Wi-Fi Adapter ]  [ Ethernet Adapter ]
-                  Metric 1           Metric 35 (Default GW)
-                         |                  |
-                         v                  v
-                   Mobile Hotspot     College / Campus LAN
-                   (Unfiltered)       (High Bandwidth)
+                          [ Windows Host ]
+                                 |
+                 +---------------+---------------+
+                 |                               |
+        Discord Voice / RTC               All Other Traffic
+        (UDP / Media Ports)             (Web / HTTPS / LAN)
+                 |                               |
+                 v                               v
+           [ Wi-Fi NIC ]                  [ Ethernet NIC ]
+       Metric 1 Host Routes           Metric 35 Default Route
+                 |                               |
+                 v                               v
+           Mobile Hotspot                   Campus LAN
 ```
 
----
+## Verification
 
-## 🗑️ Uninstallation
-Right-click `Uninstall-DiscRoute.bat` and select **"Run as administrator"**. It will remove the Scheduled Task, delete the startup tray item, and stop all processes cleanly.
+Check routes in PowerShell:
+```powershell
+Get-NetRoute -InterfaceAlias 'Wi-Fi' | Where-Object { $_.DestinationPrefix -like '162.159.*' -or $_.DestinationPrefix -like '104.29.*' }
+```
 
----
+Check default egress IP (should reflect LAN, not Wi-Fi):
+```powershell
+curl.exe -s https://ifconfig.me
+```
 
-## 📄 License
-MIT License. Created by Gung.
+## Uninstall
+Right-click `Uninstall-DiscRoute.bat` and select **Run as administrator**. This removes the scheduled task, kills running background processes, and unregisters the startup entry.
+
+## License
+MIT
