@@ -1,6 +1,6 @@
 # DiscRoute
 
-Dual-NIC split router for Windows. Keeps primary traffic on Ethernet while sending blocked Discord voice (WebRTC) and media traffic over a secondary Wi-Fi connection.
+Dual-NIC split router for Windows. Keeps primary traffic on Ethernet while sending blocked apps (currently only bypasses Discord voice (WebRTC)) and media traffic over a secondary Wi-Fi connection.
 
 ## Problem
 
@@ -65,4 +65,4 @@ curl.exe -s https://ifconfig.me
 Right-click `Uninstall-DiscRoute.bat` and select **Run as administrator**. This removes the scheduled task, kills running background processes, and unregisters the startup entry.
 
 ## License
-MIT
+MIT - Created by Gungna.
